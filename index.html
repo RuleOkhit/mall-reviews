@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leave a Review</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1d2330;
+    --muted: #6b7280;
+    --accent: #1a73e8;
+    --green: #188038;
+    --border: #e3e6eb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  main { width: 100%; max-width: 440px; }
+  .stars { text-align: center; font-size: 1.75rem; color: #fbbc04; letter-spacing: 4px; }
+  .step {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600; font-size: 1.05rem; margin: 24px 0 10px;
+  }
+  .num {
+    flex: none; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center; font-size: 1rem;
+  }
+  .textbox {
+    width: 100%;
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 18px 16px;
+    font: inherit; font-size: 1.15rem; line-height: 1.5; text-align: left; color: var(--text);
+    cursor: pointer;
+    min-height: 100px;
+    transition: border-color .2s, background .2s;
+  }
+  .textbox.copied { border: 2px solid var(--green); background: #e6f4ea; }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; border: 0; border-radius: 14px;
+    padding: 18px; font: inherit; font-size: 1.15rem; font-weight: 700;
+    color: #fff; text-decoration: none; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(.98); }
+  .copy-btn { background: #3c4043; margin-top: 12px; }
+  .copy-btn.copied { background: var(--green); }
+  .review-btn { background: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <div class="stars">★★★★★</div>
+
+  <div class="step"><span class="num">1</span> Tap to copy 📋</div>
+  <button id="text" class="textbox" type="button">Loading…</button>
+  <button id="copy" class="btn copy-btn" type="button">📋 Copy</button>
+
+  <div class="step"><span class="num">2</span> Paste in Google & give ⭐⭐⭐⭐⭐</div>
+  <a id="review" class="btn review-btn" href="https://g.page/r/CXhOAKZQoMzrEBM/review">
+    ⭐ Write Google Review
+  </a>
+</main>
+
+<script>
+  const textEl = document.getElementById("text");
+  const copyBtn = document.getElementById("copy");
+  const reviewBtn = document.getElementById("review");
+  // Shared copy counter (free service). Every copy adds 1; the text shown is
+  // count % number of texts, so each visitor gets the next one.
+  const COUNTER = "https://abacus.jasoncameron.dev";
+  const KEY = "ruleokhit-mall-reviews/copied";
+  let current = null;
+  let copied = false;
+
+  async function load() {
+    try {
+      const texts = await fetch("texts.json", { cache: "no-store" }).then(r => r.json());
+      let count = 0;
+      try {
+        const res = await fetch(`${COUNTER}/get/${KEY}`, { cache: "no-store" });
+        if (res.ok) count = (await res.json()).value || 0;
+      } catch {}
+      const index = count % texts.length;
+      current = { index, text: texts[index] };
+      textEl.textContent = current.text;
+    } catch {
+      textEl.textContent = "Could not load. Please refresh the page.";
+    }
+  }
+
+  // Works on https (clipboard API) and falls back to the old method on http.
+  async function writeClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch {}
+      ta.remove();
+      return ok;
+    }
+  }
+
+  async function copy() {
+    if (!current) return false;
+    const ok = await writeClipboard(current.text);
+    if (!ok) return false;
+    textEl.classList.add("copied");
+    copyBtn.classList.add("copied");
+    copyBtn.textContent = "✅ Copied!";
+    if (!copied) {
+      copied = true;
+      // Tell the server this text is used, so the next customer gets the next one.
+      fetch(`${COUNTER}/hit/${KEY}`, { keepalive: true }).catch(() => {});
+    }
+    return true;
+  }
+
+  textEl.addEventListener("click", copy);
+  copyBtn.addEventListener("click", copy);
+
+  // If they skip step 1, copy for them before opening Google.
+  reviewBtn.addEventListener("click", async (e) => {
+    if (copied) return;
+    e.preventDefault();
+    await copy();
+    window.location.href = reviewBtn.href;
+  });
+
+  load();
+</script>
+</body>
+</html>
